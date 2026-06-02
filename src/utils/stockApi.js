@@ -1,7 +1,11 @@
-// 通过 Yahoo Finance 免费接口获取实时股价
-// 无需 API Key，但有跨域限制 — 浏览器端通过代理或直接请求
+// 通过多个免费接口获取实时股价
+// 无需 API Key
 
-const CORS_PROXY = 'https://api.allorigins.win/raw?url='
+// 多个 CORS 代理，第一个失败则尝试下一个
+const CORS_PROXIES = [
+  'https://api.allorigins.win/raw?url=',
+  'https://corsproxy.io/?',
+]
 
 /**
  * 获取单只股票实时价格
@@ -10,22 +14,28 @@ const CORS_PROXY = 'https://api.allorigins.win/raw?url='
  */
 export async function fetchStockPrice(symbol) {
   const cleanSymbol = symbol.toUpperCase().trim()
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${cleanSymbol}?interval=1d&range=1d`
 
+  // 先尝试直接请求
   try {
-    // 方案1: 尝试直接请求 Yahoo Finance (可能被CORS阻止)
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${cleanSymbol}?interval=1d&range=1d`
-    const data = await fetchWithTimeout(url, 5000)
+    const data = await fetchWithTimeout(url, 4000)
     return parseYahooResponse(data, cleanSymbol)
   } catch {
-    // 方案2: 通过代理
+    // 无需操作，尝试代理
+  }
+
+  // 依次尝试各个代理
+  for (const proxy of CORS_PROXIES) {
     try {
-      const proxyUrl = `${CORS_PROXY}${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${cleanSymbol}?interval=1d&range=1d`)}`
-      const data = await fetchWithTimeout(proxyUrl, 8000)
+      const proxyUrl = `${proxy}${encodeURIComponent(url)}`
+      const data = await fetchWithTimeout(proxyUrl, 6000)
       return parseYahooResponse(data, cleanSymbol)
     } catch {
-      throw new Error(`无法获取 ${cleanSymbol} 的价格`)
+      continue
     }
   }
+
+  throw new Error(`无法获取 ${cleanSymbol} 的价格，请检查网络`)
 }
 
 async function fetchWithTimeout(url, timeout) {
@@ -68,14 +78,18 @@ function parseYahooResponse(data, symbol) {
  */
 export async function fetchMultiplePrices(symbols) {
   const results = {}
-  await Promise.all(
-    symbols.map(async (sym) => {
-      try {
-        results[sym] = await fetchStockPrice(sym)
-      } catch (e) {
-        results[sym] = { symbol: sym, price: null, error: e.message }
-      }
-    })
-  )
+  const validSymbols = symbols.filter(s => s && s.trim())
+  if (validSymbols.length === 0) return results
+
+  // 并发请求所有股票
+  const promises = validSymbols.map(async (sym) => {
+    try {
+      results[sym] = await fetchStockPrice(sym)
+    } catch (e) {
+      results[sym] = { symbol: sym, price: null, error: e.message }
+    }
+  })
+
+  await Promise.allSettled(promises)
   return results
 }

@@ -1,17 +1,16 @@
 import { useEffect, useRef } from 'react'
 import { createChart } from 'lightweight-charts'
 
-// 模拟K线数据 - Yahoo Finance免费接口可替换
 function generateMockCandles(days = 120) {
   const candles = []
-  let close = 150, high, low, open
+  let close = 150
   const now = new Date()
   for (let i = days; i >= 0; i--) {
     const change = (Math.random() - 0.48) * 4
-    open = close
+    const open = close
     close = close + change
-    high = Math.max(open, close) + Math.random() * 2
-    low = Math.min(open, close) - Math.random() * 2
+    const high = Math.max(open, close) + Math.random() * 2
+    const low = Math.min(open, close) - Math.random() * 2
     const date = new Date(now)
     date.setDate(date.getDate() - i)
     candles.push({
@@ -27,7 +26,6 @@ function generateMockCandles(days = 120) {
 
 export default function StockChart({ symbol = 'NVDA', height = 400, showVolume = true }) {
   const containerRef = useRef(null)
-  const chartRef = useRef(null)
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -36,23 +34,19 @@ export default function StockChart({ symbol = 'NVDA', height = 400, showVolume =
       height,
       layout: {
         background: { color: '#ffffff' },
-        textColor: '#475569',
+        textColor: '#6b6e77',
       },
       grid: {
-        vertLines: { color: '#f1f5f9' },
-        horzLines: { color: '#f1f5f9' },
+        vertLines: { color: '#f0f1f4' },
+        horzLines: { color: '#f0f1f4' },
       },
       crosshair: {
         mode: 0,
-        vertLine: { color: '#2563eb', style: 2, labelBackgroundColor: '#2563eb' },
-        horzLine: { color: '#2563eb', style: 2, labelBackgroundColor: '#2563eb' },
+        vertLine: { color: '#0d0d12', style: 2, labelBackgroundColor: '#0d0d12' },
+        horzLine: { color: '#0d0d12', style: 2, labelBackgroundColor: '#0d0d12' },
       },
-      rightPriceScale: { borderColor: '#e2e8f0' },
-      timeScale: {
-        borderColor: '#e2e8f0',
-        timeVisible: true,
-        secondsVisible: false,
-      },
+      rightPriceScale: { borderColor: '#e4e6ea' },
+      timeScale: { borderColor: '#e4e6ea', timeVisible: true },
     })
 
     const candleSeries = chart.addCandlestickSeries({
@@ -65,15 +59,12 @@ export default function StockChart({ symbol = 'NVDA', height = 400, showVolume =
     })
 
     const volumeSeries = showVolume ? chart.addHistogramSeries({
-      color: '#26a69a55',
       priceFormat: { type: 'volume' },
       priceScaleId: '',
     }) : null
 
     if (volumeSeries) {
-      chart.priceScale('').applyOptions({
-        scaleMargins: { top: 0.82, bottom: 0 },
-      })
+      chart.priceScale('').applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } })
     }
 
     const data = generateMockCandles()
@@ -83,18 +74,17 @@ export default function StockChart({ symbol = 'NVDA', height = 400, showVolume =
       volumeSeries.setData(data.map(d => ({
         time: d.time,
         value: Math.floor(Math.random() * 5000000 + 2000000),
-        color: d.close >= d.open ? '#16a34a44' : '#dc262644',
+        color: d.close >= d.open ? '#16a34a33' : '#dc262633',
       })))
     }
 
-    // 添加MA均线
     const ma20Line = chart.addLineSeries({
       color: '#f59e0b',
       lineWidth: 1,
       priceLineVisible: false,
     })
     const ma20Data = data.map((d, i) => {
-      if (i < 19) return { time: d.time, value: undefined }
+      if (i < 19) return { time: d.time }
       const slice = data.slice(i - 19, i + 1)
       const avg = slice.reduce((s, c) => s + c.close, 0) / 20
       return { time: d.time, value: +avg.toFixed(2) }
@@ -102,7 +92,6 @@ export default function StockChart({ symbol = 'NVDA', height = 400, showVolume =
     ma20Line.setData(ma20Data)
 
     chart.timeScale().fitContent()
-    chartRef.current = chart
 
     const handleResize = () => {
       if (containerRef.current) {
@@ -110,7 +99,6 @@ export default function StockChart({ symbol = 'NVDA', height = 400, showVolume =
       }
     }
     window.addEventListener('resize', handleResize)
-
     return () => {
       window.removeEventListener('resize', handleResize)
       chart.remove()
@@ -120,27 +108,28 @@ export default function StockChart({ symbol = 'NVDA', height = 400, showVolume =
   return (
     <div style={{ position: 'relative' }}>
       <div style={{
-        display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8,
-        fontSize: 13, color: 'var(--text-secondary)'
+        display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6,
+        fontSize: 12, color: 'var(--text-secondary)',
       }}>
-        <span style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: 16 }}>{symbol}</span>
-        <span className="tag tag-yellow">MA20</span>
-        <span style={{ fontSize: 11 }}>日K</span>
+        <span style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: 15 }}>{symbol}</span>
+        <span className="tag">MA20</span>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>日K</span>
       </div>
       <div ref={containerRef} style={{ width: '100%', minHeight: height }} />
     </div>
   )
 }
 
-// TradingView 全功能图表的 iframe 嵌入
+// TradingView - dark widget for contrast in fullscreen
 export function TradingViewChart({ symbol = 'NASDAQ:NVDA', height = 600 }) {
   return (
     <div style={{
       position: 'relative', width: '100%', height,
-      borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border-color)',
+      borderRadius: 8, overflow: 'hidden', border: '1px solid #e4e6ea',
+      background: '#131722',
     }}>
       <iframe
-        src={`https://s.tradingview.com/widgetembed/?frameElementId=tradingview_chart&symbol=${encodeURIComponent(symbol)}&interval=D&hidesidetoolbar=0&symboledit=1&saveimage=1&toolbarbg=f1f3f6&studies=MA:20,MA:60,RSI:14&theme=light&style=1&timezone=Asia/Shanghai&withdateranges=1&showpopupbutton=1&studies_overrides={}&overrides={}&enabled_features=[]&disabled_features=[]&locale=zh_CN`}
+        src={`https://s.tradingview.com/widgetembed/?frameElementId=tradingview_chart&symbol=${encodeURIComponent(symbol)}&interval=D&hidesidetoolbar=0&symboledit=1&saveimage=1&toolbarbg=f7f8fa&studies=MA:20,MA:60,RSI:14&theme=light&style=1&timezone=Asia/Shanghai&withdateranges=1&showpopupbutton=1&studies_overrides={}&overrides={}&enabled_features=[]&disabled_features=[]&locale=zh_CN`}
         style={{ width: '100%', height: '100%', border: 'none' }}
         title={`${symbol} Chart`}
       />
@@ -148,13 +137,12 @@ export function TradingViewChart({ symbol = 'NASDAQ:NVDA', height = 600 }) {
   )
 }
 
-// 迷你图表组件（用于观察列表）
+// Mini chart
 export function MiniChart({ symbol = 'NVDA', width = 120, height = 50 }) {
   const containerRef = useRef(null)
 
   useEffect(() => {
     if (!containerRef.current) return
-
     const chart = createChart(containerRef.current, {
       width, height,
       layout: { background: { color: 'transparent' } },
@@ -164,18 +152,15 @@ export function MiniChart({ symbol = 'NVDA', width = 120, height = 50 }) {
       timeScale: { visible: false, borderVisible: false },
       handleScroll: false, handleScale: false,
     })
-
-    const lineSeries = chart.addLineSeries({
-      color: '#2563eb',
-      lineWidth: 2,
+    const series = chart.addLineSeries({
+      color: '#0d0d12',
+      lineWidth: 1.5,
       priceLineVisible: false,
       lastValueVisible: false,
     })
-
     const data = generateMockCandles(60).map(c => ({ time: c.time, value: c.close }))
-    lineSeries.setData(data)
+    series.setData(data)
     chart.timeScale().fitContent()
-
     return () => chart.remove()
   }, [symbol, width, height])
 
