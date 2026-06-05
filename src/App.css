@@ -3,12 +3,38 @@
   min-height: 100vh;
 }
 
-.main-content {
-  flex: 1;
-  padding: 24px 28px 24px 260px;
-  max-width: 100vw;
-  overflow-x: hidden;
+/* ═══════════════════════════════════════════════
+   COLOR ACCENT SYSTEM
+   Base: black/white | Accents: green/red/purple/blue/amber
+   ═══════════════════════════════════════════════ */
+:root {
+  --accent-purple: #6366f1;
+  --accent-purple-dim: #4f46e5;
+  --accent-green: #16a34a;
+  --accent-red: #dc2626;
+  --accent-amber: #f59e0b;
+  --accent-blue: #2563eb;
+  --accent-teal: #14b8a6;
+  --accent-pink: #ec4899;
 }
+
+/* ─── Stat cards with colored left borders ─── */
+.stat-card.warn  { border-left: 3px solid var(--accent-amber); }
+.stat-card.danger { border-left: 3px solid var(--accent-red); }
+.stat-card.ok    { border-left: 3px solid var(--accent-green); }
+.stat-card.info  { border-left: 3px solid var(--accent-purple); }
+
+/* ─── Colored tags ─── */
+.tag-green  { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+.tag-red    { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+.tag-amber  { background: #fffbeb; color: #d97706; border: 1px solid #fde68a; }
+.tag-blue   { background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; }
+.tag-purple { background: #f5f3ff; color: #7c3aed; border: 1px solid #ddd6fe; }
+
+/* ─── Gradient chart fills ─── */
+.gradient-up { background: linear-gradient(180deg, #16a34a10 0%, #16a34a02 100%); }
+.gradient-down { background: linear-gradient(180deg, #dc262610 0%, #dc262602 100%); }
+.gradient-purple { background: linear-gradient(180deg, #6366f108 0%, #6366f102 100%); }
 
 .page-header {
   margin-bottom: 24px;

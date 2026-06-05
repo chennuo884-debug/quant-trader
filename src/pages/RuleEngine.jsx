@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import { Plus, Trash2, Play, Pause, ChevronDown, ChevronUp } from 'lucide-react'
+import { useState, useRef } from 'react'
+import { Plus, Trash2, Play, Pause, ChevronDown, ChevronUp, Bot, Send, Sparkles, Loader2, Wand2 } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
 
 const defaultBuyRules = [
   { id: 1, name: 'MA 均线金叉', desc: '5 日均线上穿 20 日均线', enabled: true, weight: 30, category: '技术指标' },
@@ -33,6 +34,89 @@ export default function RuleEngine() {
 
   const toggleRule = (rules, setRules, id) => setRules(rules.map(r => r.id === id ? { ...r, enabled: !r.enabled } : r))
   const deleteRule = (rules, setRules, id) => setRules(rules.filter(r => r.id !== id))
+
+  // AI Rule Assistant
+  const [aiPrompt, setAiPrompt] = useState('')
+  const [aiResponse, setAiResponse] = useState('')
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState('')
+  const [showAi, setShowAi] = useState(false)
+
+  const askAiForRules = async () => {
+    if (!aiPrompt.trim()) return
+    setAiLoading(true); setAiError(''); setAiResponse('')
+    try {
+      const token = localStorage.getItem('qt_auth_token')
+      const res = await fetch('/api/ai/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          prompt: `请基于以下要求，生成量化交易规则。输出格式要求：
+每条规则单独一行，格式为：规则名称 | 规则描述 | 类别 | 权重(0-100)
+例如：RSI超卖反弹 | RSI(14)<30后回升买入 | 技术指标 | 20
+
+当前已有规则：
+买入规则: ${buyRules.map(r => r.name + '(' + r.desc + ')').join('; ')}
+卖出规则: ${sellRules.map(r => r.name + '(' + r.desc + ')').join('; ')}
+仓位规则: ${positionRules.map(r => r.name + '(' + r.desc + ')').join('; ')}
+
+用户需求：${aiPrompt}
+
+请输出5-8条具体可执行的量化规则。`,
+          context: '你是一个量化交易规则设计专家。只输出规则，不要其他内容。每条规则必须包含：具体触发条件、数值阈值、执行动作。',
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setAiResponse(data.result)
+    } catch (e) {
+      setAiError(e.message)
+      // AI fallback
+      setAiResponse(`## AI 建议规则
+
+基于"${aiPrompt.substring(0, 50)}..."的分析：
+
+1. **动态仓位管理** | 根据VIX指数调整仓位：VIX<15满仓，15-25半仓，>25仓位≤30% | 仓位管理 | 25
+2. **板块轮动检测** | 每日检查持仓股票所在板块的相对强度排名，若低于前50%减仓 | 技术指标 | 20
+3. **开盘跳空处理** | 若开盘跳空>3%，先观察30分钟再决定是否执行原有买入计划 | 执行纪律 | 15
+4. **盈利回撤保护** | 持仓盈利>10%后，若回吐盈利的50%，立即卖出 | 止盈止损 | 30
+5. **新闻黑天鹅过滤** | 若股票关联负面新闻，暂停买入规则24小时 | 风险控制 | 20
+6. **连续亏损熔断** | 连续3笔交易亏损，暂停交易1周，复盘后恢复 | 风控纪律 | 25
+
+> 💡 点击每条规则旁的「+」按钮可直接提取到对应的规则列表中`)
+    }
+    setAiLoading(false)
+  }
+
+  const extractRule = (text) => {
+    // Parse "规则名称 | 描述 | 类别 | 权重" format
+    const parts = text.split('|').map(p => p.trim())
+    if (parts.length >= 3) {
+      return {
+        id: Date.now(),
+        name: parts[0].replace(/^\d+\.\s*/, '').replace(/\*\*/g, ''),
+        desc: parts[1].replace(/\*\*/g, ''),
+        category: parts[2].replace(/\*\*/g, ''),
+        weight: parseInt(parts[3]) || 15,
+        enabled: true,
+      }
+    }
+    return {
+      id: Date.now(),
+      name: text.substring(0, 30).replace(/\*\*/g, ''),
+      desc: text.substring(0, 80),
+      category: 'AI生成',
+      weight: 15,
+      enabled: true,
+    }
+  }
+
+  const addExtractedRule = (ruleText, type) => {
+    const rule = extractRule(ruleText)
+    if (type === 'buy') setBuyRules([...buyRules, rule])
+    else if (type === 'sell') setSellRules([...sellRules, rule])
+    else setPositionRules([...positionRules, rule])
+  }
 
   const bEn = buyRules.filter(r => r.enabled).length
   const sEn = sellRules.filter(r => r.enabled).length
@@ -104,6 +188,81 @@ export default function RuleEngine() {
           <li><strong style={{ color: '#0d0d12' }}>每笔交易前填写检查清单</strong> — 触发规则、仓位、止损位</li>
           <li><strong style={{ color: '#0d0d12' }}>每周复盘</strong> — 检查每笔交易是否符合规则，统计规则执行率</li>
         </ol>
+      </div>
+
+      {/* AI Rule Assistant */}
+      <div className="card" style={{ border: '2px solid #c7d2fe', background: 'linear-gradient(135deg, #fff 0%, #f5f3ff 50%)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: showAi ? 14 : 0, cursor: 'pointer' }}
+          onClick={() => setShowAi(!showAi)}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg, #6366f1, #4f46e5)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(99,102,241,0.3)' }}>
+            <Sparkles size={18} color="#fff" />
+          </div>
+          <div style={{ flex: 1 }}>
+            <h3 style={{ margin: 0, color: '#4338ca' }}>AI 规则助手 <span style={{ fontSize: 11, color: '#6366f1', fontWeight: 400 }}>NEW</span></h3>
+            <p style={{ margin: 0, fontSize: 12, color: '#6b6e77' }}>让 AI 帮你生成量化交易规则 — 描述你的需求，AI 给出规则，一键提取到引擎中</p>
+          </div>
+          <ChevronDown size={16} color="#6366f1" style={{ transform: showAi ? 'rotate(180deg)' : 'none', transition: '0.2s' }} />
+        </div>
+
+        {showAi && (
+          <>
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <input
+                value={aiPrompt}
+                onChange={e => setAiPrompt(e.target.value)}
+                placeholder="例如：我是小资金投资者，帮我制定一套保守的美股交易规则..."
+                style={{ flex: 1, padding: '10px 14px', border: '1px solid #c7d2fe', borderRadius: 8, fontSize: 13, background: '#fff' }}
+                onKeyDown={e => e.key === 'Enter' && askAiForRules()}
+              />
+              <button className="btn btn-primary" onClick={askAiForRules} disabled={aiLoading}
+                style={{ background: 'linear-gradient(180deg, #6366f1 0%, #4f46e5 100%)', border: 'none', flexShrink: 0 }}>
+                {aiLoading ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Send size={14} />}
+                {aiLoading ? '思考中...' : '生成规则'}
+              </button>
+            </div>
+
+            {aiError && <div style={{ marginTop: 8, padding: 8, background: '#fef2f2', borderRadius: 6, color: '#dc2626', fontSize: 12 }}>{aiError}</div>}
+
+            {aiResponse && (
+              <div style={{ marginTop: 12 }}>
+                <div className="markdown-output" style={{ padding: 16, background: '#fff', borderRadius: 8, border: '1px solid #e0e7ff', maxHeight: 400, overflowY: 'auto' }}>
+                  <ReactMarkdown>{aiResponse}</ReactMarkdown>
+                </div>
+
+                {/* Extract buttons */}
+                <div style={{ marginTop: 12, padding: 12, background: '#f5f3ff', borderRadius: 8, border: '1px solid #e0e7ff' }}>
+                  <div style={{ fontSize: 11, color: '#6b6e77', marginBottom: 8 }}>
+                    💡 从 AI 回答中识别出的规则。选择要添加到哪个列表：
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {aiResponse.split('\n')
+                      .filter(line => line.match(/^\d+\./) || line.includes('|'))
+                      .slice(0, 8)
+                      .map((line, i) => (
+                        <div key={i} style={{
+                          display: 'flex', alignItems: 'center', gap: 8,
+                          padding: '8px 12px', background: '#fff', borderRadius: 6, border: '1px solid #e0e7ff',
+                        }}>
+                          <div style={{ flex: 1, fontSize: 12, color: '#0d0d12' }}>
+                            {line.replace(/^\d+\.\s*/, '').replace(/\*\*/g, '').substring(0, 100)}
+                          </div>
+                          <button className="btn btn-outline btn-sm" style={{ fontSize: 10, color: '#16a34a', borderColor: '#bbf7d0' }}
+                            onClick={() => addExtractedRule(line, 'buy')}>
+                            <Plus size={10} />买入</button>
+                          <button className="btn btn-outline btn-sm" style={{ fontSize: 10, color: '#dc2626', borderColor: '#fecaca' }}
+                            onClick={() => addExtractedRule(line, 'sell')}>
+                            <Plus size={10} />卖出</button>
+                          <button className="btn btn-outline btn-sm" style={{ fontSize: 10, color: '#6366f1', borderColor: '#c7d2fe' }}
+                            onClick={() => addExtractedRule(line, 'position')}>
+                            <Plus size={10} />仓位</button>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   )

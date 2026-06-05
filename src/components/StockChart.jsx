@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { createChart } from 'lightweight-charts'
+import { createChart, CandlestickSeries, LineSeries, HistogramSeries } from 'lightweight-charts'
 
 function generateMockCandles(days = 120) {
   const candles = []
@@ -32,56 +32,41 @@ export default function StockChart({ symbol = 'NVDA', height = 400, showVolume =
 
     const chart = createChart(containerRef.current, {
       height,
-      layout: {
-        background: { color: '#ffffff' },
-        textColor: '#6b6e77',
-      },
-      grid: {
-        vertLines: { color: '#f0f1f4' },
-        horzLines: { color: '#f0f1f4' },
-      },
+      layout: { background: { color: '#ffffff' }, textColor: '#6b6e77' },
+      grid: { vertLines: { color: '#f0f1f4' }, horzLines: { color: '#f0f1f4' } },
       crosshair: {
         mode: 0,
         vertLine: { color: '#0d0d12', style: 2, labelBackgroundColor: '#0d0d12' },
         horzLine: { color: '#0d0d12', style: 2, labelBackgroundColor: '#0d0d12' },
       },
-      rightPriceScale: { borderColor: '#e4e6ea' },
+      rightPriceScale: { borderColor: '#e4e6ea', scaleMargins: { top: 0.05, bottom: 0.2 } },
       timeScale: { borderColor: '#e4e6ea', timeVisible: true },
     })
 
-    const candleSeries = chart.addCandlestickSeries({
-      upColor: '#16a34a',
-      downColor: '#dc2626',
-      borderDownColor: '#dc2626',
-      borderUpColor: '#16a34a',
-      wickDownColor: '#dc2626',
-      wickUpColor: '#16a34a',
+    const candleSeries = chart.addSeries(CandlestickSeries, {
+      upColor: '#16a34a', downColor: '#dc2626',
+      borderDownColor: '#dc2626', borderUpColor: '#16a34a',
+      wickDownColor: '#dc2626', wickUpColor: '#16a34a',
     })
-
-    const volumeSeries = showVolume ? chart.addHistogramSeries({
-      priceFormat: { type: 'volume' },
-      priceScaleId: '',
-    }) : null
-
-    if (volumeSeries) {
-      chart.priceScale('').applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } })
-    }
 
     const data = generateMockCandles()
     candleSeries.setData(data)
 
-    if (volumeSeries) {
-      volumeSeries.setData(data.map(d => ({
+    // Volume subplot
+    if (showVolume) {
+      const volPane = chart.addSubchart({ height: 80, handleScale: false, handleScroll: false })
+      const volSeries = volPane.addSeries(HistogramSeries, { priceFormat: { type: 'volume' }, priceScaleId: '' })
+      volSeries.setData(data.map(d => ({
         time: d.time,
         value: Math.floor(Math.random() * 5000000 + 2000000),
         color: d.close >= d.open ? '#16a34a33' : '#dc262633',
       })))
+      chart.priceScale('').applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } })
     }
 
-    const ma20Line = chart.addLineSeries({
-      color: '#f59e0b',
-      lineWidth: 1,
-      priceLineVisible: false,
+    // MA20 line
+    const ma20Line = chart.addSeries(LineSeries, {
+      color: '#f59e0b', lineWidth: 1, priceLineVisible: false,
     })
     const ma20Data = data.map((d, i) => {
       if (i < 19) return { time: d.time }
@@ -94,9 +79,7 @@ export default function StockChart({ symbol = 'NVDA', height = 400, showVolume =
     chart.timeScale().fitContent()
 
     const handleResize = () => {
-      if (containerRef.current) {
-        chart.applyOptions({ width: containerRef.current.clientWidth })
-      }
+      if (containerRef.current) chart.applyOptions({ width: containerRef.current.clientWidth })
     }
     window.addEventListener('resize', handleResize)
     return () => {
@@ -107,10 +90,7 @@ export default function StockChart({ symbol = 'NVDA', height = 400, showVolume =
 
   return (
     <div style={{ position: 'relative' }}>
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6,
-        fontSize: 12, color: 'var(--text-secondary)',
-      }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, fontSize: 12, color: 'var(--text-secondary)' }}>
         <span style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: 15 }}>{symbol}</span>
         <span className="tag">MA20</span>
         <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>日K</span>
@@ -120,7 +100,7 @@ export default function StockChart({ symbol = 'NVDA', height = 400, showVolume =
   )
 }
 
-// TradingView - dark widget for contrast in fullscreen
+// TradingView iframe widget
 export function TradingViewChart({ symbol = 'NASDAQ:NVDA', height = 600 }) {
   return (
     <div style={{
@@ -137,7 +117,7 @@ export function TradingViewChart({ symbol = 'NASDAQ:NVDA', height = 600 }) {
   )
 }
 
-// Mini chart
+// Mini sparkline
 export function MiniChart({ symbol = 'NVDA', width = 120, height = 50 }) {
   const containerRef = useRef(null)
 
@@ -152,11 +132,8 @@ export function MiniChart({ symbol = 'NVDA', width = 120, height = 50 }) {
       timeScale: { visible: false, borderVisible: false },
       handleScroll: false, handleScale: false,
     })
-    const series = chart.addLineSeries({
-      color: '#0d0d12',
-      lineWidth: 1.5,
-      priceLineVisible: false,
-      lastValueVisible: false,
+    const series = chart.addSeries(LineSeries, {
+      color: '#6366f1', lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false,
     })
     const data = generateMockCandles(60).map(c => ({ time: c.time, value: c.close }))
     series.setData(data)

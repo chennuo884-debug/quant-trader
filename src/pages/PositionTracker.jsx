@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Trash2, Edit3, Save, X, Download, Upload, Search, Wallet, RefreshCw, AlertCircle, TrendingUp, Loader2 } from 'lucide-react'
+import { Plus, Trash2, Edit3, Save, X, Download, Upload, Search, Wallet, RefreshCw, AlertCircle, TrendingUp, Loader2, ExternalLink, Newspaper } from 'lucide-react'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
-import { fetchMultiplePrices } from '../utils/stockApi'
 
 const COLORS = ['#0d0d12', '#333', '#555', '#777', '#999', '#bbb']
 
@@ -44,16 +43,28 @@ export default function PositionTracker() {
     setRefreshing(true)
     const symbols = positions.map(p => p.stock).filter(Boolean)
     setLoadingPrices(new Set(symbols))
-    try {
-      const results = await fetchMultiplePrices(symbols)
-      if (!mountedRef.current) return
-      setPositions(prev => prev.map(p => {
-        const quote = results[p.stock]
-        if (quote && quote.price != null) return { ...p, currentPrice: quote.price }
-        return p
-      }))
-      setLastRefresh(new Date().toLocaleTimeString())
-    } catch { /* 静默失败 */ }
+
+    // Fetch real prices from backend Yahoo Finance proxy
+    const results = {}
+    await Promise.all(symbols.map(async (sym) => {
+      try {
+        const res = await fetch(`/api/stock/${sym}`)
+        if (res.ok) {
+          const data = await res.json()
+          if (data?.quote?.price) {
+            results[sym] = { price: data.quote.price, change: data.quote.change, changePercent: data.quote.changePercent }
+          }
+        }
+      } catch {}
+    }))
+
+    if (!mountedRef.current) return
+    setPositions(prev => prev.map(p => {
+      const quote = results[p.stock]
+      if (quote && quote.price != null) return { ...p, currentPrice: quote.price }
+      return p
+    }))
+    setLastRefresh(new Date().toLocaleTimeString())
     setRefreshing(false)
     setLoadingPrices(new Set())
   }
@@ -198,9 +209,11 @@ export default function PositionTracker() {
                       <td style={{ fontSize: 12, color: p.avgCost > 0 && price > 0 ? (pnl >= 0 ? '#16a34a' : '#dc2626') : '#9a9da7' }}>
                         {p.avgCost > 0 && price > 0 ? <>{pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}<br /><span style={{ fontSize: 10 }}>({pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(1)}%)</span></> : '—'}
                       </td>
-                      <td>
-                        <button className="btn btn-ghost btn-sm" onClick={() => openEdit(i)}><Edit3 size={13} /></button>
-                        <button className="btn btn-ghost btn-sm" onClick={() => handleDelete(i)} style={{ color: '#9a9da7' }}><Trash2 size={13} /></button>
+                      <td style={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                        <button className="btn btn-ghost btn-sm" onClick={() => openEdit(i)} title="编辑"><Edit3 size={13} /></button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => handleDelete(i)} title="删除"><Trash2 size={13} color="#9a9da7" /></button>
+                        <a href={`https://finance.yahoo.com/quote/${p.stock}`} target="_blank" rel="noopener" className="btn btn-ghost btn-sm" title="Yahoo Finance" style={{ textDecoration: 'none' }}><ExternalLink size={13} color="#6366f1" /></a>
+                        <a href={`https://finance.yahoo.com/quote/${p.stock}/news`} target="_blank" rel="noopener" className="btn btn-ghost btn-sm" title="新闻" style={{ textDecoration: 'none' }}><Newspaper size={13} color="#f59e0b" /></a>
                       </td>
                     </tr>
                   )
